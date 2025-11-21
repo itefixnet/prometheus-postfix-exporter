@@ -30,14 +30,18 @@ init_state() {
     local state_dir
     state_dir="$(dirname "$STATE_FILE")"
     
+    log "Using state file: $STATE_FILE"
+    
     if [[ ! -d "$state_dir" ]]; then
         mkdir -p "$state_dir" 2>/dev/null || {
             log "WARNING: Cannot create state directory $state_dir, using /tmp"
             STATE_FILE="/tmp/postfix-exporter-state"
+            log "State file changed to: $STATE_FILE"
         }
     fi
     
     if [[ ! -f "$STATE_FILE" ]]; then
+        log "Initializing new state file"
         # Initialize state file with zeros
         cat > "$STATE_FILE" <<EOF
 last_inode=0
