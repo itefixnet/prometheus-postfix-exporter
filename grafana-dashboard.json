@@ -109,6 +109,65 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 17,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "name"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "postfix_version_info{instance=~\"$instance\",job=~\"$job\"}",
+          "legendFormat": "{{version}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Postfix Version",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "palette-classic"
           },
           "custom": {
@@ -157,7 +216,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 15,
+        "w": 18,
         "x": 0,
         "y": 1
       },
