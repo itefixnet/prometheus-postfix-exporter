@@ -207,6 +207,7 @@ parse_log_direct() {
     # Count events in new lines and increment counters
     local count
     
+    # Basic message stats
     count=$(echo "$new_lines" | grep -c "postfix/smtpd.*client=" || true)
     messages_received=$((messages_received + count))
     
@@ -221,6 +222,51 @@ parse_log_direct() {
     
     count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:" || true)
     messages_rejected=$((messages_rejected + count))
+    
+    # SMTP connection stats
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*client=" || true)
+    smtpd_connections=$((smtpd_connections + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*NOQUEUE:" || true)
+    smtpd_noqueue=$((smtpd_noqueue + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*sasl_method=" || true)
+    smtpd_sasl_authenticated=$((smtpd_sasl_authenticated + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*SASL.*authentication failed" || true)
+    smtpd_sasl_failed=$((smtpd_sasl_failed + count))
+    
+    # Rejection reasons
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*RBL" || true)
+    reject_rbl=$((reject_rbl + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*HELO" || true)
+    reject_helo=$((reject_helo + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || true)
+    reject_sender=$((reject_sender + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || true)
+    reject_recipient=$((reject_recipient + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || true)
+    reject_client=$((reject_client + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*User unknown" || true)
+    reject_unknown_user=$((reject_unknown_user + count))
+    
+    # Delivery by transport
+    count=$(echo "$new_lines" | grep -c "postfix/smtp.*status=sent" || true)
+    smtp_delivery=$((smtp_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/lmtp.*status=sent" || true)
+    lmtp_delivery=$((lmtp_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/virtual.*status=sent" || true)
+    virtual_delivery=$((virtual_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/pipe.*status=sent" || true)
+    pipe_delivery=$((pipe_delivery + count))
     
     # Update position
     last_position=$current_size
