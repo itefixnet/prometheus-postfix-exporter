@@ -106,7 +106,13 @@ The exporter can be configured using environment variables or configuration file
 | `MAX_CONNECTIONS` | `10` | Maximum concurrent HTTP connections |
 | `TIMEOUT` | `30` | Request timeout in seconds |
 
-**How it works**: The exporter maintains persistent counters in a state file, tracking the log file position (inode and byte offset). On each scrape, it reads only new log entries since the last run, increments the counters accordingly, and saves the state. This ensures counters monotonically increase as required by Prometheus, enabling accurate `rate()` and `increase()` calculations. Log rotation and truncation are automatically detected and handled.
+**How it works**: The exporter maintains persistent counters in a state file, tracking the log file position (inode and byte offset). On each scrape, it:
+1. Reads only new log entries since the last position
+2. Parses all metrics (messages, SMTP connections, rejections, deliveries) in a single pass
+3. Increments the appropriate counters in memory
+4. Saves the updated state (counters and position) to disk
+
+This architecture ensures counters monotonically increase as required by Prometheus, enabling accurate `rate()` and `increase()` calculations. Log rotation and truncation are automatically detected and handled. All log parsing is consolidated in the `parse_log_direct()` function to prevent position conflicts and ensure data consistency.
 
 ### Configuration Files
 
@@ -225,25 +231,24 @@ Import the provided `grafana-dashboard.json` file into your Grafana instance:
 The comprehensive Grafana dashboard includes:
 
 - **Overview Row**:
-  - Postfix Status (running/stopped indicator)
-  - Uptime display with color-coded thresholds
-  - Message Rate (received, delivered, rejected, bounced per minute)
-  - Total Queue Size indicator
+  - Message Rate panel (received, delivered, rejected, bounced per minute) - 18 columns wide
+  - Uptime panel - compact 6x4 display with color-coded thresholds
+  - Postfix Version panel - displays version information
 
-- **Queue Details Row** (collapsible):
+- **Queue Details Row**:
   - Queue Size by Type (stacked area chart showing active, deferred, incoming, hold, maildrop)
-  - Current Queue Sizes (bar gauge)
+  - Current Queue Sizes (bar gauge with color thresholds)
 
-- **Message Statistics Row** (collapsible):
+- **Message Statistics Row**:
   - Message Flow (1h increase) showing received, delivered, deferred, bounced
-  - Message Distribution (24h pie chart)
+  - Message Distribution (24h pie chart with percentages)
 
-- **SMTP & Rejections Row** (collapsible):
-  - SMTP Connections (connections, SASL authenticated, SASL failed per minute)
-  - SMTP Rejections by Reason (stacked chart showing RBL, HELO, sender, recipient, client, unknown user)
+- **SMTP & Rejections Row** (collapsed by default):
+  - SMTP Connections per minute (connections, SASL authenticated, SASL failed)
+  - SMTP Rejections by Reason per minute (stacked chart by reason: RBL, HELO, sender, recipient, client, unknown user)
 
-- **Delivery Details Row** (collapsible):
-  - Deliveries by Transport (smtp, lmtp, virtual, pipe per minute)
+- **Delivery Details Row** (collapsed by default):
+  - Deliveries by Transport per minute (smtp, lmtp, virtual, pipe)
 
 All panels support:
 - Multi-instance filtering with template variables
