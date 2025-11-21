@@ -408,10 +408,6 @@ get_process_stats() {
 
 # Main function to collect and output all metrics
 collect_metrics() {
-    # Initialize state
-    init_state
-    load_state
-    
     # Output metrics header
     echo "# Postfix Mail Server Metrics"
     echo "# Generated at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -443,9 +439,6 @@ collect_metrics() {
     
     # Collect delivery stats
     get_delivery_stats
-    
-    # Save state for next run
-    save_state
 }
 
 # Function to test connectivity
@@ -498,7 +491,15 @@ test_connection() {
 # Handle command line arguments
 case "${1:-collect}" in
     "collect"|"metrics"|"")
+        # Initialize and load state before collecting metrics
+        init_state
+        load_state
+        
+        # Collect and output metrics
         collect_metrics
+        
+        # Save state after collecting metrics
+        save_state
         ;;
     "test")
         test_connection
