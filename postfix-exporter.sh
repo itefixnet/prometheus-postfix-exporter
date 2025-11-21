@@ -26,6 +26,9 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >&2
 }
 
+# Array to track metrics that have been defined
+declare -A METRIC_DEFINED
+
 # Function to format Prometheus metric
 format_metric() {
     local metric_name="$1"
@@ -33,13 +36,20 @@ format_metric() {
     local labels="$3"
     local help="$4"
     local type="${5:-gauge}"
+    
+    local full_name="${METRICS_PREFIX}_${metric_name}"
 
-    echo "# HELP ${METRICS_PREFIX}_${metric_name} ${help}"
-    echo "# TYPE ${METRICS_PREFIX}_${metric_name} ${type}"
+    # Only output HELP and TYPE once per metric name
+    if [[ -z "${METRIC_DEFINED[$full_name]:-}" ]]; then
+        echo "# HELP ${full_name} ${help}"
+        echo "# TYPE ${full_name} ${type}"
+        METRIC_DEFINED[$full_name]=1
+    fi
+    
     if [[ -n "$labels" ]]; then
-        echo "${METRICS_PREFIX}_${metric_name}{${labels}} ${value}"
+        echo "${full_name}{${labels}} ${value}"
     else
-        echo "${METRICS_PREFIX}_${metric_name} ${value}"
+        echo "${full_name} ${value}"
     fi
 }
 
@@ -53,12 +63,12 @@ get_queue_stats() {
     # Count messages in various queues
     local incoming maildrop active deferred hold corrupt
     
-    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l || echo "0")
-    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l || echo "0")
-    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l || echo "0")
-    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l || echo "0")
-    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l || echo "0")
-    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l || echo "0")
+    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
     
     format_metric "queue_size" "$incoming" "queue=\"incoming\"" "Number of messages in queue"
     format_metric "queue_size" "$maildrop" "queue=\"maildrop\"" "Number of messages in queue"
@@ -92,12 +102,12 @@ parse_with_pflogsumm() {
     local received delivered forwarded deferred bounced rejected held discarded
     local bytes_received bytes_delivered
     
-    received=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ received" | grep -oE '^[0-9]+' || echo "0")
-    delivered=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ delivered" | grep -oE '^[0-9]+' || echo "0")
-    forwarded=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ forwarded" | grep -oE '^[0-9]+' || echo "0")
-    deferred=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ deferred" | grep -oE '^[0-9]+' || echo "0")
-    bounced=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ bounced" | grep -oE '^[0-9]+' || echo "0")
-    rejected=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ rejected" | grep -oE '^[0-9]+' || echo "0")
+    received=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ received" | grep -oE '[0-9]+' | head -1 || echo "0")
+    delivered=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ delivered" | grep -oE '[0-9]+' | head -1 || echo "0")
+    forwarded=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ forwarded" | grep -oE '[0-9]+' | head -1 || echo "0")
+    deferred=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ deferred" | grep -oE '[0-9]+' | head -1 || echo "0")
+    bounced=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ bounced" | grep -oE '[0-9]+' | head -1 || echo "0")
+    rejected=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ rejected" | grep -oE '[0-9]+' | head -1 || echo "0")
     
     format_metric "messages_received_total" "$received" "" "Total number of messages received" "counter"
     format_metric "messages_delivered_total" "$delivered" "" "Total number of messages delivered" "counter"
