@@ -63,12 +63,20 @@ get_queue_stats() {
     # Count messages in various queues
     local incoming maildrop active deferred hold corrupt
     
-    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l | tr -d ' ')
+    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l | tr -d ' ')
+    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l | tr -d ' ')
+    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l | tr -d ' ')
+    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l | tr -d ' ')
+    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l | tr -d ' ')
+    
+    # Default to 0 if empty
+    incoming=${incoming:-0}
+    maildrop=${maildrop:-0}
+    active=${active:-0}
+    deferred=${deferred:-0}
+    hold=${hold:-0}
+    corrupt=${corrupt:-0}
     
     format_metric "queue_size" "$incoming" "queue=\"incoming\"" "Number of messages in queue"
     format_metric "queue_size" "$maildrop" "queue=\"maildrop\"" "Number of messages in queue"
@@ -102,12 +110,20 @@ parse_with_pflogsumm() {
     local received delivered forwarded deferred bounced rejected held discarded
     local bytes_received bytes_delivered
     
-    received=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ received" | grep -oE '[0-9]+' | head -1 || echo "0")
-    delivered=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ delivered" | grep -oE '[0-9]+' | head -1 || echo "0")
-    forwarded=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ forwarded" | grep -oE '[0-9]+' | head -1 || echo "0")
-    deferred=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ deferred" | grep -oE '[0-9]+' | head -1 || echo "0")
-    bounced=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ bounced" | grep -oE '[0-9]+' | head -1 || echo "0")
-    rejected=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ rejected" | grep -oE '[0-9]+' | head -1 || echo "0")
+    received=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ received" | grep -oE '[0-9]+' | head -1)
+    delivered=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ delivered" | grep -oE '[0-9]+' | head -1)
+    forwarded=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ forwarded" | grep -oE '[0-9]+' | head -1)
+    deferred=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ deferred" | grep -oE '[0-9]+' | head -1)
+    bounced=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ bounced" | grep -oE '[0-9]+' | head -1)
+    rejected=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ rejected" | grep -oE '[0-9]+' | head -1)
+    
+    # Default to 0 if empty
+    received=${received:-0}
+    delivered=${delivered:-0}
+    forwarded=${forwarded:-0}
+    deferred=${deferred:-0}
+    bounced=${bounced:-0}
+    rejected=${rejected:-0}
     
     format_metric "messages_received_total" "$received" "" "Total number of messages received" "counter"
     format_metric "messages_delivered_total" "$delivered" "" "Total number of messages delivered" "counter"
@@ -134,11 +150,13 @@ parse_log_direct() {
     # Count various events from recent logs
     local received delivered deferred bounced rejected sent removed
     
-    received=$(echo "$log_data" | grep -c "postfix/smtpd.*client=" || echo "0")
-    delivered=$(echo "$log_data" | grep -c "postfix/.*status=sent" || echo "0")
-    deferred=$(echo "$log_data" | grep -c "postfix/.*status=deferred" || echo "0")
-    bounced=$(echo "$log_data" | grep -c "postfix/.*status=bounced" || echo "0")
-    rejected=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:" || echo "0")
+    received=$(echo "$log_data" | grep -c "postfix/smtpd.*client=")
+    delivered=$(echo "$log_data" | grep -c "postfix/.*status=sent")
+    deferred=$(echo "$log_data" | grep -c "postfix/.*status=deferred")
+    bounced=$(echo "$log_data" | grep -c "postfix/.*status=bounced")
+    rejected=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:")
+    
+    # grep -c always returns a number (0 if no matches), so no need for defaults
     
     format_metric "messages_received_total" "$received" "" "Total number of messages received" "counter"
     format_metric "messages_delivered_total" "$delivered" "" "Total number of messages delivered" "counter"
@@ -163,10 +181,10 @@ get_smtp_stats() {
     # Count connections and authentication
     local connections noqueue sasl_authenticated sasl_failed
     
-    connections=$(echo "$log_data" | grep -c "postfix/smtpd.*connect from" || echo "0")
-    noqueue=$(echo "$log_data" | grep -c "postfix/smtpd.*NOQUEUE:" || echo "0")
-    sasl_authenticated=$(echo "$log_data" | grep -c "postfix/smtpd.*sasl_method=" || echo "0")
-    sasl_failed=$(echo "$log_data" | grep -c "postfix/smtpd.*SASL.*authentication failed" || echo "0")
+    connections=$(echo "$log_data" | grep -c "postfix/smtpd.*connect from")
+    noqueue=$(echo "$log_data" | grep -c "postfix/smtpd.*NOQUEUE:")
+    sasl_authenticated=$(echo "$log_data" | grep -c "postfix/smtpd.*sasl_method=")
+    sasl_failed=$(echo "$log_data" | grep -c "postfix/smtpd.*SASL.*authentication failed")
     
     format_metric "smtpd_connections_total" "$connections" "" "Total SMTP connections" "counter"
     format_metric "smtpd_noqueue_total" "$noqueue" "" "Total NOQUEUE rejections" "counter"
@@ -190,12 +208,12 @@ get_rejection_stats() {
     # Count different rejection reasons
     local reject_rbl reject_helo reject_sender reject_recipient reject_client reject_unknown_user
     
-    reject_rbl=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*RBL" || echo "0")
-    reject_helo=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*HELO" || echo "0")
-    reject_sender=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || echo "0")
-    reject_recipient=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || echo "0")
-    reject_client=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || echo "0")
-    reject_unknown_user=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*User unknown" || echo "0")
+    reject_rbl=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*RBL")
+    reject_helo=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*HELO")
+    reject_sender=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Sender address rejected")
+    reject_recipient=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected")
+    reject_client=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Client host rejected")
+    reject_unknown_user=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*User unknown")
     
     format_metric "smtpd_reject_total" "$reject_rbl" "reason=\"rbl\"" "SMTP rejections by reason" "counter"
     format_metric "smtpd_reject_total" "$reject_helo" "reason=\"helo\"" "SMTP rejections by reason" "counter"
@@ -221,10 +239,10 @@ get_delivery_stats() {
     # Count delivery by transport
     local smtp_delivery lmtp_delivery virtual_delivery pipe_delivery
     
-    smtp_delivery=$(echo "$log_data" | grep -c "postfix/smtp.*status=sent" || echo "0")
-    lmtp_delivery=$(echo "$log_data" | grep -c "postfix/lmtp.*status=sent" || echo "0")
-    virtual_delivery=$(echo "$log_data" | grep -c "postfix/virtual.*status=sent" || echo "0")
-    pipe_delivery=$(echo "$log_data" | grep -c "postfix/pipe.*status=sent" || echo "0")
+    smtp_delivery=$(echo "$log_data" | grep -c "postfix/smtp.*status=sent")
+    lmtp_delivery=$(echo "$log_data" | grep -c "postfix/lmtp.*status=sent")
+    virtual_delivery=$(echo "$log_data" | grep -c "postfix/virtual.*status=sent")
+    pipe_delivery=$(echo "$log_data" | grep -c "postfix/pipe.*status=sent")
     
     format_metric "delivery_status_total" "$smtp_delivery" "transport=\"smtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
     format_metric "delivery_status_total" "$lmtp_delivery" "transport=\"lmtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
