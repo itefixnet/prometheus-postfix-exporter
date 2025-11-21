@@ -281,42 +281,6 @@ parse_log_direct() {
 
 # Function to get SMTP connection stats
 get_smtp_stats() {
-    if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return 0
-    fi
-    
-    # Get current log file info
-    local current_inode current_size
-    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    
-    # Read only new lines
-    local new_lines
-    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
-        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
-    else
-        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
-    fi
-    
-    if [[ -z "$new_lines" ]]; then
-        return 0
-    fi
-    
-    # Count connections and authentication
-    local count
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*connect from" || true)
-    smtpd_connections=$((smtpd_connections + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*NOQUEUE:" || true)
-    smtpd_noqueue=$((smtpd_noqueue + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*sasl_method=" || true)
-    smtpd_sasl_authenticated=$((smtpd_sasl_authenticated + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*SASL.*authentication failed" || true)
-    smtpd_sasl_failed=$((smtpd_sasl_failed + count))
-    
     format_metric "smtpd_connections_total" "$smtpd_connections" "" "Total SMTP connections" "counter"
     format_metric "smtpd_noqueue_total" "$smtpd_noqueue" "" "Total NOQUEUE rejections" "counter"
     format_metric "smtpd_sasl_authenticated_total" "$smtpd_sasl_authenticated" "" "Total SASL authenticated sessions" "counter"
@@ -325,48 +289,6 @@ get_smtp_stats() {
 
 # Function to get rejection reasons
 get_rejection_stats() {
-    if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return 0
-    fi
-    
-    # Get current log file info
-    local current_inode current_size
-    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    
-    # Read only new lines
-    local new_lines
-    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
-        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
-    else
-        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
-    fi
-    
-    if [[ -z "$new_lines" ]]; then
-        return 0
-    fi
-    
-    # Count different rejection reasons
-    local count
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*RBL" || true)
-    reject_rbl=$((reject_rbl + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*HELO" || true)
-    reject_helo=$((reject_helo + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || true)
-    reject_sender=$((reject_sender + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || true)
-    reject_recipient=$((reject_recipient + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || true)
-    reject_client=$((reject_client + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*User unknown" || true)
-    reject_unknown_user=$((reject_unknown_user + count))
-    
     format_metric "smtpd_reject_total" "$reject_rbl" "reason=\"rbl\"" "SMTP rejections by reason" "counter"
     format_metric "smtpd_reject_total" "$reject_helo" "reason=\"helo\"" "SMTP rejections by reason" "counter"
     format_metric "smtpd_reject_total" "$reject_sender" "reason=\"sender\"" "SMTP rejections by reason" "counter"
@@ -377,42 +299,6 @@ get_rejection_stats() {
 
 # Function to get delivery status details
 get_delivery_stats() {
-    if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return 0
-    fi
-    
-    # Get current log file info
-    local current_inode current_size
-    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
-    
-    # Read only new lines
-    local new_lines
-    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
-        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
-    else
-        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
-    fi
-    
-    if [[ -z "$new_lines" ]]; then
-        return 0
-    fi
-    
-    # Count delivery by transport
-    local count
-    
-    count=$(echo "$new_lines" | grep -c "postfix/smtp.*status=sent" || true)
-    smtp_delivery=$((smtp_delivery + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/lmtp.*status=sent" || true)
-    lmtp_delivery=$((lmtp_delivery + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/virtual.*status=sent" || true)
-    virtual_delivery=$((virtual_delivery + count))
-    
-    count=$(echo "$new_lines" | grep -c "postfix/pipe.*status=sent" || true)
-    pipe_delivery=$((pipe_delivery + count))
-    
     format_metric "delivery_status_total" "$smtp_delivery" "transport=\"smtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
     format_metric "delivery_status_total" "$lmtp_delivery" "transport=\"lmtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
     format_metric "delivery_status_total" "$virtual_delivery" "transport=\"virtual\",status=\"sent\"" "Deliveries by transport and status" "counter"
