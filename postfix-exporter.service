@@ -1,0 +1,27 @@
+[Unit]
+Description=Postfix Prometheus Exporter
+After=network.target postfix.service
+Wants=postfix.service
+
+[Service]
+Type=simple
+User=postfix-exporter
+Group=postfix-exporter
+EnvironmentFile=/opt/postfix-exporter/postfix-exporter.conf
+ExecStart=/opt/postfix-exporter/http-server.sh start
+ExecStop=/opt/postfix-exporter/http-server.sh stop
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+
+# Give access to Postfix logs and queue
+ReadOnlyPaths=/var/log/mail.log /var/spool/postfix
+
+[Install]
+WantedBy=multi-user.target

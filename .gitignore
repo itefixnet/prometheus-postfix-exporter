@@ -1,0 +1,20 @@
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cache files
+/tmp/postfix_exporter_cache*
+
+# Editor files
+.vscode/
+.idea/
+*.iml
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
