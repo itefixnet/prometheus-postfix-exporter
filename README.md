@@ -290,7 +290,7 @@ The dashboard supports:
 4. **Missing Dependencies**:
    ```bash
    # Install socat (Ubuntu/Debian)
-   sudo apt-get install socat pflogsumm
+   sudo apt-get install socat
    
    # Install socat (CentOS/RHEL)
    sudo yum install socat
@@ -300,11 +300,6 @@ The dashboard supports:
    - Verify Postfix is running: `systemctl status postfix`
    - Check queue directory: `ls -la /var/spool/postfix`
    - Ensure postconf is available: `which postconf`
-
-6. **pflogsumm Not Working**:
-   - Install pflogsumm: `sudo apt-get install pflogsumm`
-   - Or disable it: `export USE_PFLOGSUMM=false`
-   - The exporter will fall back to direct log parsing
 
 ### Logging
 
@@ -316,39 +311,8 @@ The dashboard supports:
 For high-traffic mail servers:
 - Adjust `LOG_LINES` to analyze fewer lines (faster but less accurate)
 - Consider running exporter on a separate monitoring server
-- Use pflogsumm for more efficient log analysis
 - Monitor system resources
 - Tune scrape interval in Prometheus
-
-## pflogsumm Integration
-
-The exporter can optionally use pflogsumm for enhanced log analysis:
-
-**Benefits of pflogsumm:**
-- More accurate message counting
-- Better performance on large log files
-- Additional metrics and statistics
-- Handles log rotation better
-
-**Installation:**
-```bash
-# Ubuntu/Debian
-sudo apt-get install pflogsumm
-
-# CentOS/RHEL
-sudo yum install postfix-perl-scripts
-```
-
-**Configuration:**
-```bash
-# Enable pflogsumm
-export USE_PFLOGSUMM=true
-
-# Or disable for direct log parsing
-export USE_PFLOGSUMM=false
-```
-
-The exporter automatically falls back to direct log parsing if pflogsumm is not available.
 
 ## Development
 
