@@ -57,18 +57,18 @@ format_metric() {
 get_queue_stats() {
     if [[ ! -d "$POSTFIX_QUEUE_DIR" ]]; then
         log "WARNING: Postfix queue directory not found: $POSTFIX_QUEUE_DIR"
-        return
+        return 0
     fi
     
     # Count messages in various queues
     local incoming maildrop active deferred hold corrupt
     
-    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l | tr -d ' ')
-    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l | tr -d ' ')
-    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l | tr -d ' ')
-    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l | tr -d ' ')
-    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l | tr -d ' ')
-    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l | tr -d ' ')
+    incoming=$(find "${POSTFIX_QUEUE_DIR}/incoming" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
+    maildrop=$(find "${POSTFIX_QUEUE_DIR}/maildrop" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
+    active=$(find "${POSTFIX_QUEUE_DIR}/active" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
+    deferred=$(find "${POSTFIX_QUEUE_DIR}/deferred" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
+    hold=$(find "${POSTFIX_QUEUE_DIR}/hold" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
+    corrupt=$(find "${POSTFIX_QUEUE_DIR}/corrupt" -type f 2>/dev/null | wc -l | tr -d ' ' || true)
     
     # Default to 0 if empty
     incoming=${incoming:-0}
@@ -137,24 +137,24 @@ parse_with_pflogsumm() {
 parse_log_direct() {
     if [[ ! -r "$POSTFIX_LOG" ]]; then
         log "WARNING: Cannot read log file: $POSTFIX_LOG"
-        return
+        return 0
     fi
     
     local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
     
     if [[ -z "$log_data" ]]; then
-        return
+        return 0
     fi
     
     # Count various events from recent logs
     local received delivered deferred bounced rejected sent removed
     
-    received=$(echo "$log_data" | grep -c "postfix/smtpd.*client=")
-    delivered=$(echo "$log_data" | grep -c "postfix/.*status=sent")
-    deferred=$(echo "$log_data" | grep -c "postfix/.*status=deferred")
-    bounced=$(echo "$log_data" | grep -c "postfix/.*status=bounced")
-    rejected=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:")
+    received=$(echo "$log_data" | grep -c "postfix/smtpd.*client=" || true)
+    delivered=$(echo "$log_data" | grep -c "postfix/.*status=sent" || true)
+    deferred=$(echo "$log_data" | grep -c "postfix/.*status=deferred" || true)
+    bounced=$(echo "$log_data" | grep -c "postfix/.*status=bounced" || true)
+    rejected=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:" || true)
     
     # grep -c always returns a number (0 if no matches), so no need for defaults
     
@@ -168,23 +168,23 @@ parse_log_direct() {
 # Function to get SMTP connection stats
 get_smtp_stats() {
     if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return
+        return 0
     fi
     
     local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
     
     if [[ -z "$log_data" ]]; then
-        return
+        return 0
     fi
     
     # Count connections and authentication
     local connections noqueue sasl_authenticated sasl_failed
     
-    connections=$(echo "$log_data" | grep -c "postfix/smtpd.*connect from")
-    noqueue=$(echo "$log_data" | grep -c "postfix/smtpd.*NOQUEUE:")
-    sasl_authenticated=$(echo "$log_data" | grep -c "postfix/smtpd.*sasl_method=")
-    sasl_failed=$(echo "$log_data" | grep -c "postfix/smtpd.*SASL.*authentication failed")
+    connections=$(echo "$log_data" | grep -c "postfix/smtpd.*connect from" || true)
+    noqueue=$(echo "$log_data" | grep -c "postfix/smtpd.*NOQUEUE:" || true)
+    sasl_authenticated=$(echo "$log_data" | grep -c "postfix/smtpd.*sasl_method=" || true)
+    sasl_failed=$(echo "$log_data" | grep -c "postfix/smtpd.*SASL.*authentication failed" || true)
     
     format_metric "smtpd_connections_total" "$connections" "" "Total SMTP connections" "counter"
     format_metric "smtpd_noqueue_total" "$noqueue" "" "Total NOQUEUE rejections" "counter"
@@ -195,25 +195,25 @@ get_smtp_stats() {
 # Function to get rejection reasons
 get_rejection_stats() {
     if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return
+        return 0
     fi
     
     local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
     
     if [[ -z "$log_data" ]]; then
-        return
+        return 0
     fi
     
     # Count different rejection reasons
     local reject_rbl reject_helo reject_sender reject_recipient reject_client reject_unknown_user
     
-    reject_rbl=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*RBL")
-    reject_helo=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*HELO")
-    reject_sender=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Sender address rejected")
-    reject_recipient=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected")
-    reject_client=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Client host rejected")
-    reject_unknown_user=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*User unknown")
+    reject_rbl=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*RBL" || true)
+    reject_helo=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*HELO" || true)
+    reject_sender=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || true)
+    reject_recipient=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || true)
+    reject_client=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || true)
+    reject_unknown_user=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*User unknown" || true)
     
     format_metric "smtpd_reject_total" "$reject_rbl" "reason=\"rbl\"" "SMTP rejections by reason" "counter"
     format_metric "smtpd_reject_total" "$reject_helo" "reason=\"helo\"" "SMTP rejections by reason" "counter"
@@ -226,23 +226,23 @@ get_rejection_stats() {
 # Function to get delivery status details
 get_delivery_stats() {
     if [[ ! -r "$POSTFIX_LOG" ]]; then
-        return
+        return 0
     fi
     
     local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
     
     if [[ -z "$log_data" ]]; then
-        return
+        return 0
     fi
     
     # Count delivery by transport
     local smtp_delivery lmtp_delivery virtual_delivery pipe_delivery
     
-    smtp_delivery=$(echo "$log_data" | grep -c "postfix/smtp.*status=sent")
-    lmtp_delivery=$(echo "$log_data" | grep -c "postfix/lmtp.*status=sent")
-    virtual_delivery=$(echo "$log_data" | grep -c "postfix/virtual.*status=sent")
-    pipe_delivery=$(echo "$log_data" | grep -c "postfix/pipe.*status=sent")
+    smtp_delivery=$(echo "$log_data" | grep -c "postfix/smtp.*status=sent" || true)
+    lmtp_delivery=$(echo "$log_data" | grep -c "postfix/lmtp.*status=sent" || true)
+    virtual_delivery=$(echo "$log_data" | grep -c "postfix/virtual.*status=sent" || true)
+    pipe_delivery=$(echo "$log_data" | grep -c "postfix/pipe.*status=sent" || true)
     
     format_metric "delivery_status_total" "$smtp_delivery" "transport=\"smtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
     format_metric "delivery_status_total" "$lmtp_delivery" "transport=\"lmtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
