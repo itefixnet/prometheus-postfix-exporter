@@ -2,11 +2,11 @@
 
 # Postfix Prometheus Exporter
 
-A lightweight, bash-based Prometheus exporter for Postfix mail server statistics. This exporter uses only bash, curl, and socat to provide comprehensive Postfix metrics for monitoring with Prometheus and Grafana. Optionally uses pflogsumm for enhanced log analysis.
+A lightweight, bash-based Prometheus exporter for Postfix mail server statistics. This exporter uses only bash and socat to provide comprehensive Postfix metrics for monitoring with Prometheus and Grafana.
 
 ## Features
 
-- **Pure Bash Implementation**: No external dependencies except `socat` and optionally `pflogsumm`
+- **Pure Bash Implementation**: No external dependencies except `socat`
 - **Comprehensive Metrics**: Exports Postfix statistics including:
   - Queue sizes (active, deferred, incoming, hold, maildrop, corrupt)
   - Message counters (received, delivered, forwarded, deferred, bounced, rejected)
@@ -15,11 +15,11 @@ A lightweight, bash-based Prometheus exporter for Postfix mail server statistics
   - Delivery status by transport (smtp, lmtp, virtual, pipe)
   - Process status and uptime
   - Postfix version information
+- **Stateful Counter Tracking**: Maintains persistent counters for accurate Prometheus rate calculations
 - **HTTP Server**: Built-in HTTP server using socat for serving metrics
 - **Systemd Integration**: Ready-to-use systemd service file
 - **Grafana Dashboard**: Pre-built comprehensive dashboard
 - **Multi-Instance Support**: Monitor multiple Postfix servers
-- **pflogsumm Integration**: Optional enhanced log analysis with pflogsumm
 
 ## Quick Start
 
@@ -27,7 +27,6 @@ A lightweight, bash-based Prometheus exporter for Postfix mail server statistics
 
 - Postfix mail server
 - `socat` package installed
-- `pflogsumm` (optional, for enhanced metrics)
 - Prometheus server for scraping metrics
 - Read access to Postfix logs and queue directory
 
@@ -64,6 +63,7 @@ For production deployment, install as a system service:
 # Create user and directories
 sudo useradd -r -s /bin/false postfix-exporter
 sudo mkdir -p /opt/postfix-exporter
+sudo mkdir -p /var/lib/postfix-exporter
 
 # Copy files
 sudo cp *.sh /opt/postfix-exporter/
@@ -73,6 +73,7 @@ sudo cp postfix-exporter.service /etc/systemd/system/
 
 # Set permissions
 sudo chown -R postfix-exporter:postfix-exporter /opt/postfix-exporter
+sudo chown -R postfix-exporter:postfix-exporter /var/lib/postfix-exporter
 sudo chmod +x /opt/postfix-exporter/*.sh
 
 # Add user to adm group for log access
@@ -100,10 +101,12 @@ The exporter can be configured using environment variables or configuration file
 | `LISTEN_PORT` | `9154` | HTTP server port |
 | `LISTEN_ADDRESS` | `0.0.0.0` | HTTP server bind address |
 | `METRICS_PREFIX` | `postfix` | Prometheus metrics prefix |
-| `USE_PFLOGSUMM` | `true` | Use pflogsumm for log analysis |
-| `LOG_LINES` | `10000` | Number of log lines to analyze |
+| `LOG_LINES` | `10000` | Number of log lines to parse on first run |
+| `STATE_FILE` | `/var/lib/postfix-exporter/state` | State file for persistent counters |
 | `MAX_CONNECTIONS` | `10` | Maximum concurrent HTTP connections |
 | `TIMEOUT` | `30` | Request timeout in seconds |
+
+**How it works**: The exporter maintains persistent counters in a state file, tracking the log file position (inode and byte offset). On each scrape, it reads only new log entries since the last run, increments the counters accordingly, and saves the state. This ensures counters monotonically increase as required by Prometheus, enabling accurate `rate()` and `increase()` calculations. Log rotation and truncation are automatically detected and handled.
 
 ### Configuration Files
 

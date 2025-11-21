@@ -20,12 +20,11 @@ export TIMEOUT="${TIMEOUT:-30}"
 # Logging Configuration
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 
-# pflogsumm Configuration
-export USE_PFLOGSUMM="${USE_PFLOGSUMM:-true}"
+# Log parsing Configuration
 export LOG_LINES="${LOG_LINES:-10000}"
 
-# Cache Configuration
-export CACHE_FILE="${CACHE_FILE:-/tmp/postfix_exporter_cache}"
+# State file (for persistent counters)
+export STATE_FILE="${STATE_FILE:-/var/lib/postfix-exporter/state}"
 export CACHE_TTL="${CACHE_TTL:-60}"
 
 # Advanced Configuration

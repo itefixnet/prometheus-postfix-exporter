@@ -16,14 +16,87 @@ CONFIG_FILE="${SCRIPT_DIR}/config.sh"
 POSTFIX_LOG="${POSTFIX_LOG:-/var/log/mail.log}"
 POSTFIX_QUEUE_DIR="${POSTFIX_QUEUE_DIR:-/var/spool/postfix}"
 METRICS_PREFIX="${METRICS_PREFIX:-postfix}"
-USE_PFLOGSUMM="${USE_PFLOGSUMM:-true}"
 LOG_LINES="${LOG_LINES:-10000}"
-CACHE_FILE="${CACHE_FILE:-/tmp/postfix_exporter_cache}"
+STATE_FILE="${STATE_FILE:-/var/lib/postfix-exporter/state}"
 CACHE_TTL="${CACHE_TTL:-60}"
 
 # Logging function
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >&2
+}
+
+# Initialize state directory and file
+init_state() {
+    local state_dir
+    state_dir="$(dirname "$STATE_FILE")"
+    
+    if [[ ! -d "$state_dir" ]]; then
+        mkdir -p "$state_dir" 2>/dev/null || {
+            log "WARNING: Cannot create state directory $state_dir, using /tmp"
+            STATE_FILE="/tmp/postfix-exporter-state"
+        }
+    fi
+    
+    if [[ ! -f "$STATE_FILE" ]]; then
+        # Initialize state file with zeros
+        cat > "$STATE_FILE" <<EOF
+last_inode=0
+last_position=0
+messages_received=0
+messages_delivered=0
+messages_deferred=0
+messages_bounced=0
+messages_rejected=0
+smtpd_connections=0
+smtpd_noqueue=0
+smtpd_sasl_authenticated=0
+smtpd_sasl_failed=0
+reject_rbl=0
+reject_helo=0
+reject_sender=0
+reject_recipient=0
+reject_client=0
+reject_unknown_user=0
+smtp_delivery=0
+lmtp_delivery=0
+virtual_delivery=0
+pipe_delivery=0
+EOF
+    fi
+}
+
+# Load state from file
+load_state() {
+    if [[ -f "$STATE_FILE" ]]; then
+        source "$STATE_FILE"
+    fi
+}
+
+# Save state to file
+save_state() {
+    cat > "$STATE_FILE" <<EOF
+last_inode=$last_inode
+last_position=$last_position
+messages_received=$messages_received
+messages_delivered=$messages_delivered
+messages_deferred=$messages_deferred
+messages_bounced=$messages_bounced
+messages_rejected=$messages_rejected
+smtpd_connections=$smtpd_connections
+smtpd_noqueue=$smtpd_noqueue
+smtpd_sasl_authenticated=$smtpd_sasl_authenticated
+smtpd_sasl_failed=$smtpd_sasl_failed
+reject_rbl=$reject_rbl
+reject_helo=$reject_helo
+reject_sender=$reject_sender
+reject_recipient=$reject_recipient
+reject_client=$reject_client
+reject_unknown_user=$reject_unknown_user
+smtp_delivery=$smtp_delivery
+lmtp_delivery=$lmtp_delivery
+virtual_delivery=$virtual_delivery
+pipe_delivery=$pipe_delivery
+EOF
 }
 
 # Array to track metrics that have been defined
@@ -86,83 +159,74 @@ get_queue_stats() {
     format_metric "queue_size" "$corrupt" "queue=\"corrupt\"" "Number of messages in queue"
 }
 
-# Function to parse log with pflogsumm
-parse_with_pflogsumm() {
-    if ! command -v pflogsumm >/dev/null 2>&1; then
-        log "WARNING: pflogsumm not found, skipping detailed log analysis"
-        return 1
-    fi
-    
-    if [[ ! -r "$POSTFIX_LOG" ]]; then
-        log "WARNING: Cannot read log file: $POSTFIX_LOG"
-        return 1
-    fi
-    
-    # Get recent log lines and run pflogsumm
-    local pflog_output
-    pflog_output=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null | pflogsumm -d today --smtpd_stats 2>/dev/null || echo "")
-    
-    if [[ -z "$pflog_output" ]]; then
-        return 1
-    fi
-    
-    # Parse pflogsumm output
-    local received delivered forwarded deferred bounced rejected held discarded
-    local bytes_received bytes_delivered
-    
-    received=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ received" | grep -oE '[0-9]+' | head -1)
-    delivered=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ delivered" | grep -oE '[0-9]+' | head -1)
-    forwarded=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ forwarded" | grep -oE '[0-9]+' | head -1)
-    deferred=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ deferred" | grep -oE '[0-9]+' | head -1)
-    bounced=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ bounced" | grep -oE '[0-9]+' | head -1)
-    rejected=$(echo "$pflog_output" | grep -E "^\s+[0-9]+ rejected" | grep -oE '[0-9]+' | head -1)
-    
-    # Default to 0 if empty
-    received=${received:-0}
-    delivered=${delivered:-0}
-    forwarded=${forwarded:-0}
-    deferred=${deferred:-0}
-    bounced=${bounced:-0}
-    rejected=${rejected:-0}
-    
-    format_metric "messages_received_total" "$received" "" "Total number of messages received" "counter"
-    format_metric "messages_delivered_total" "$delivered" "" "Total number of messages delivered" "counter"
-    format_metric "messages_forwarded_total" "$forwarded" "" "Total number of messages forwarded" "counter"
-    format_metric "messages_deferred_total" "$deferred" "" "Total number of messages deferred" "counter"
-    format_metric "messages_bounced_total" "$bounced" "" "Total number of messages bounced" "counter"
-    format_metric "messages_rejected_total" "$rejected" "" "Total number of messages rejected" "counter"
-}
-
-# Function to parse log directly (fallback when pflogsumm is not available)
+# Function to parse log directly and update counters
 parse_log_direct() {
     if [[ ! -r "$POSTFIX_LOG" ]]; then
         log "WARNING: Cannot read log file: $POSTFIX_LOG"
         return 0
     fi
     
-    local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
+    # Get current log file inode
+    local current_inode
+    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
     
-    if [[ -z "$log_data" ]]; then
+    # Check if log file was rotated
+    if [[ "$current_inode" != "$last_inode" ]]; then
+        log "Log file rotated, resetting position"
+        last_position=0
+        last_inode=$current_inode
+    fi
+    
+    # Get current file size
+    local current_size
+    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
+    
+    # If file was truncated, reset position
+    if [[ $current_size -lt $last_position ]]; then
+        log "Log file truncated, resetting position"
+        last_position=0
+    fi
+    
+    # Read only new lines since last position
+    local new_lines
+    if [[ $last_position -gt 0 ]]; then
+        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
+    else
+        # First run, read last LOG_LINES entries
+        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    fi
+    
+    if [[ -z "$new_lines" ]]; then
         return 0
     fi
     
-    # Count various events from recent logs
-    local received delivered deferred bounced rejected sent removed
+    # Count events in new lines and increment counters
+    local count
     
-    received=$(echo "$log_data" | grep -c "postfix/smtpd.*client=" || true)
-    delivered=$(echo "$log_data" | grep -c "postfix/.*status=sent" || true)
-    deferred=$(echo "$log_data" | grep -c "postfix/.*status=deferred" || true)
-    bounced=$(echo "$log_data" | grep -c "postfix/.*status=bounced" || true)
-    rejected=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:" || true)
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*client=" || true)
+    messages_received=$((messages_received + count))
     
-    # grep -c always returns a number (0 if no matches), so no need for defaults
+    count=$(echo "$new_lines" | grep -c "postfix/.*status=sent" || true)
+    messages_delivered=$((messages_delivered + count))
     
-    format_metric "messages_received_total" "$received" "" "Total number of messages received" "counter"
-    format_metric "messages_delivered_total" "$delivered" "" "Total number of messages delivered" "counter"
-    format_metric "messages_deferred_total" "$deferred" "" "Total number of messages deferred" "counter"
-    format_metric "messages_bounced_total" "$bounced" "" "Total number of messages bounced" "counter"
-    format_metric "messages_rejected_total" "$rejected" "" "Total number of messages rejected" "counter"
+    count=$(echo "$new_lines" | grep -c "postfix/.*status=deferred" || true)
+    messages_deferred=$((messages_deferred + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/.*status=bounced" || true)
+    messages_bounced=$((messages_bounced + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:" || true)
+    messages_rejected=$((messages_rejected + count))
+    
+    # Update position
+    last_position=$current_size
+    
+    # Output metrics
+    format_metric "messages_received_total" "$messages_received" "" "Total number of messages received" "counter"
+    format_metric "messages_delivered_total" "$messages_delivered" "" "Total number of messages delivered" "counter"
+    format_metric "messages_deferred_total" "$messages_deferred" "" "Total number of messages deferred" "counter"
+    format_metric "messages_bounced_total" "$messages_bounced" "" "Total number of messages bounced" "counter"
+    format_metric "messages_rejected_total" "$messages_rejected" "" "Total number of messages rejected" "counter"
 }
 
 # Function to get SMTP connection stats
@@ -171,25 +235,42 @@ get_smtp_stats() {
         return 0
     fi
     
-    local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
+    # Get current log file info
+    local current_inode current_size
+    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
+    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
     
-    if [[ -z "$log_data" ]]; then
+    # Read only new lines
+    local new_lines
+    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
+        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
+    else
+        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    fi
+    
+    if [[ -z "$new_lines" ]]; then
         return 0
     fi
     
     # Count connections and authentication
-    local connections noqueue sasl_authenticated sasl_failed
+    local count
     
-    connections=$(echo "$log_data" | grep -c "postfix/smtpd.*connect from" || true)
-    noqueue=$(echo "$log_data" | grep -c "postfix/smtpd.*NOQUEUE:" || true)
-    sasl_authenticated=$(echo "$log_data" | grep -c "postfix/smtpd.*sasl_method=" || true)
-    sasl_failed=$(echo "$log_data" | grep -c "postfix/smtpd.*SASL.*authentication failed" || true)
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*connect from" || true)
+    smtpd_connections=$((smtpd_connections + count))
     
-    format_metric "smtpd_connections_total" "$connections" "" "Total SMTP connections" "counter"
-    format_metric "smtpd_noqueue_total" "$noqueue" "" "Total NOQUEUE rejections" "counter"
-    format_metric "smtpd_sasl_authenticated_total" "$sasl_authenticated" "" "Total SASL authenticated sessions" "counter"
-    format_metric "smtpd_sasl_failed_total" "$sasl_failed" "" "Total SASL authentication failures" "counter"
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*NOQUEUE:" || true)
+    smtpd_noqueue=$((smtpd_noqueue + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*sasl_method=" || true)
+    smtpd_sasl_authenticated=$((smtpd_sasl_authenticated + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*SASL.*authentication failed" || true)
+    smtpd_sasl_failed=$((smtpd_sasl_failed + count))
+    
+    format_metric "smtpd_connections_total" "$smtpd_connections" "" "Total SMTP connections" "counter"
+    format_metric "smtpd_noqueue_total" "$smtpd_noqueue" "" "Total NOQUEUE rejections" "counter"
+    format_metric "smtpd_sasl_authenticated_total" "$smtpd_sasl_authenticated" "" "Total SASL authenticated sessions" "counter"
+    format_metric "smtpd_sasl_failed_total" "$smtpd_sasl_failed" "" "Total SASL authentication failures" "counter"
 }
 
 # Function to get rejection reasons
@@ -198,22 +279,43 @@ get_rejection_stats() {
         return 0
     fi
     
-    local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
+    # Get current log file info
+    local current_inode current_size
+    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
+    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
     
-    if [[ -z "$log_data" ]]; then
+    # Read only new lines
+    local new_lines
+    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
+        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
+    else
+        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    fi
+    
+    if [[ -z "$new_lines" ]]; then
         return 0
     fi
     
     # Count different rejection reasons
-    local reject_rbl reject_helo reject_sender reject_recipient reject_client reject_unknown_user
+    local count
     
-    reject_rbl=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*RBL" || true)
-    reject_helo=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*HELO" || true)
-    reject_sender=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || true)
-    reject_recipient=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || true)
-    reject_client=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || true)
-    reject_unknown_user=$(echo "$log_data" | grep -c "postfix/smtpd.*reject:.*User unknown" || true)
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*RBL" || true)
+    reject_rbl=$((reject_rbl + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*HELO" || true)
+    reject_helo=$((reject_helo + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Sender address rejected" || true)
+    reject_sender=$((reject_sender + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Recipient address rejected" || true)
+    reject_recipient=$((reject_recipient + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*Client host rejected" || true)
+    reject_client=$((reject_client + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/smtpd.*reject:.*User unknown" || true)
+    reject_unknown_user=$((reject_unknown_user + count))
     
     format_metric "smtpd_reject_total" "$reject_rbl" "reason=\"rbl\"" "SMTP rejections by reason" "counter"
     format_metric "smtpd_reject_total" "$reject_helo" "reason=\"helo\"" "SMTP rejections by reason" "counter"
@@ -229,20 +331,37 @@ get_delivery_stats() {
         return 0
     fi
     
-    local log_data
-    log_data=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || true)
+    # Get current log file info
+    local current_inode current_size
+    current_inode=$(stat -c '%i' "$POSTFIX_LOG" 2>/dev/null || echo "0")
+    current_size=$(stat -c '%s' "$POSTFIX_LOG" 2>/dev/null || echo "0")
     
-    if [[ -z "$log_data" ]]; then
+    # Read only new lines
+    local new_lines
+    if [[ "$current_inode" == "$last_inode" ]] && [[ $last_position -gt 0 ]] && [[ $current_size -ge $last_position ]]; then
+        new_lines=$(tail -c +$((last_position + 1)) "$POSTFIX_LOG" 2>/dev/null || echo "")
+    else
+        new_lines=$(tail -n "$LOG_LINES" "$POSTFIX_LOG" 2>/dev/null || echo "")
+    fi
+    
+    if [[ -z "$new_lines" ]]; then
         return 0
     fi
     
     # Count delivery by transport
-    local smtp_delivery lmtp_delivery virtual_delivery pipe_delivery
+    local count
     
-    smtp_delivery=$(echo "$log_data" | grep -c "postfix/smtp.*status=sent" || true)
-    lmtp_delivery=$(echo "$log_data" | grep -c "postfix/lmtp.*status=sent" || true)
-    virtual_delivery=$(echo "$log_data" | grep -c "postfix/virtual.*status=sent" || true)
-    pipe_delivery=$(echo "$log_data" | grep -c "postfix/pipe.*status=sent" || true)
+    count=$(echo "$new_lines" | grep -c "postfix/smtp.*status=sent" || true)
+    smtp_delivery=$((smtp_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/lmtp.*status=sent" || true)
+    lmtp_delivery=$((lmtp_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/virtual.*status=sent" || true)
+    virtual_delivery=$((virtual_delivery + count))
+    
+    count=$(echo "$new_lines" | grep -c "postfix/pipe.*status=sent" || true)
+    pipe_delivery=$((pipe_delivery + count))
     
     format_metric "delivery_status_total" "$smtp_delivery" "transport=\"smtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
     format_metric "delivery_status_total" "$lmtp_delivery" "transport=\"lmtp\",status=\"sent\"" "Deliveries by transport and status" "counter"
@@ -285,6 +404,10 @@ get_process_stats() {
 
 # Main function to collect and output all metrics
 collect_metrics() {
+    # Initialize state
+    init_state
+    load_state
+    
     # Output metrics header
     echo "# Postfix Mail Server Metrics"
     echo "# Generated at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -302,18 +425,9 @@ collect_metrics() {
     get_queue_stats
     echo ""
     
-    # Collect log-based metrics
-    if [[ "$USE_PFLOGSUMM" == "true" ]]; then
-        if parse_with_pflogsumm; then
-            echo ""
-        else
-            parse_log_direct
-            echo ""
-        fi
-    else
-        parse_log_direct
-        echo ""
-    fi
+    # Collect log-based metrics (always use direct parsing with state)
+    parse_log_direct
+    echo ""
     
     # Collect SMTP stats
     get_smtp_stats
@@ -325,6 +439,9 @@ collect_metrics() {
     
     # Collect delivery stats
     get_delivery_stats
+    
+    # Save state for next run
+    save_state
 }
 
 # Function to test connectivity
@@ -356,15 +473,6 @@ test_connection() {
         errors=$((errors + 1))
     else
         log "SUCCESS: Log file readable: $POSTFIX_LOG"
-    fi
-    
-    # Check pflogsumm
-    if [[ "$USE_PFLOGSUMM" == "true" ]]; then
-        if command -v pflogsumm >/dev/null 2>&1; then
-            log "SUCCESS: pflogsumm is available"
-        else
-            log "WARNING: pflogsumm not found (will use direct log parsing)"
-        fi
     fi
     
     # Check postconf
@@ -407,8 +515,8 @@ case "${1:-collect}" in
         echo "  POSTFIX_LOG          - Path to Postfix log file (default: /var/log/mail.log)"
         echo "  POSTFIX_QUEUE_DIR    - Path to Postfix queue directory (default: /var/spool/postfix)"
         echo "  METRICS_PREFIX       - Metrics prefix (default: postfix)"
-        echo "  USE_PFLOGSUMM        - Use pflogsumm for log analysis (default: true)"
-        echo "  LOG_LINES            - Number of log lines to analyze (default: 10000)"
+        echo "  STATE_FILE           - State file for persistent counters (default: /var/lib/postfix-exporter/state)"
+        echo "  LOG_LINES            - Number of log lines to parse on first run (default: 10000)"
         ;;
     *)
         log "ERROR: Unknown command: $1"
