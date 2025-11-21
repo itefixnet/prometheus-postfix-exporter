@@ -869,7 +869,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "postfix_smtpd_connections_total{instance=~\"$instance\",job=~\"$job\"}",
+              "expr": "rate(postfix_smtpd_connections_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
               "legendFormat": "Connections",
               "refId": "A"
             },
@@ -878,7 +878,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "postfix_smtpd_sasl_authenticated_total{instance=~\"$instance\",job=~\"$job\"}",
+              "expr": "rate(postfix_smtpd_sasl_authenticated_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
               "legendFormat": "SASL Authenticated",
               "refId": "B"
             },
@@ -887,12 +887,12 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "postfix_smtpd_sasl_failed_total{instance=~\"$instance\",job=~\"$job\"}",
+              "expr": "rate(postfix_smtpd_sasl_failed_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
               "legendFormat": "SASL Failed",
               "refId": "C"
             }
           ],
-          "title": "SMTP Connections (total)",
+          "title": "SMTP Connections (per minute)",
           "type": "timeseries"
         },
         {
@@ -979,12 +979,12 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "postfix_smtpd_reject_total{instance=~\"$instance\",job=~\"$job\"}",
+              "expr": "rate(postfix_smtpd_reject_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
               "legendFormat": "{{reason}}",
               "refId": "A"
             }
           ],
-          "title": "SMTP Rejections by Reason (total)",
+          "title": "SMTP Rejections by Reason (per minute)",
           "type": "timeseries"
         }
       ],
@@ -1085,12 +1085,12 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "postfix_delivery_status_total{instance=~\"$instance\",job=~\"$job\"}",
+              "expr": "rate(postfix_delivery_status_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
               "legendFormat": "{{transport}}",
               "refId": "A"
             }
           ],
-          "title": "Deliveries by Transport (total)",
+          "title": "Deliveries by Transport (per minute)",
           "type": "timeseries"
         }
       ],
