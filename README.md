@@ -233,7 +233,6 @@ The comprehensive Grafana dashboard includes:
 - **Overview Row**:
   - Message Rate panel (received, delivered, rejected, bounced per minute) - 18 columns wide
   - Uptime panel - compact 6x4 display with color-coded thresholds
-  - Postfix Version panel - displays version information
 
 - **Queue Details Row**:
   - Queue Size by Type (stacked area chart showing active, deferred, incoming, hold, maildrop)
