@@ -117,7 +117,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_received_total{instance=~\"$instance\",job=~\"$job\"}[2m])/2",
+          "expr": "rate(postfix_messages_received_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
           "legendFormat": "Received",
           "refId": "A"
         },
@@ -126,7 +126,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_delivered_total{instance=~\"$instance\",job=~\"$job\"}[2m])/2",
+          "expr": "rate(postfix_messages_delivered_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
           "legendFormat": "Delivered",
           "refId": "B"
         },
@@ -135,7 +135,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_rejected_total{instance=~\"$instance\",job=~\"$job\"}[2m])/2",
+          "expr": "rate(postfix_messages_rejected_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
           "legendFormat": "Rejected",
           "refId": "C"
         },
@@ -144,7 +144,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_bounced_total{instance=~\"$instance\",job=~\"$job\"}[2m])/2",
+          "expr": "rate(postfix_messages_bounced_total{instance=~\"$instance\",job=~\"$job\"}[5m])*60",
           "legendFormat": "Bounced",
           "refId": "D"
         }
