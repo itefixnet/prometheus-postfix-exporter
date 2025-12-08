@@ -231,8 +231,8 @@ Import the provided `grafana-dashboard.json` file into your Grafana instance:
 The comprehensive Grafana dashboard includes:
 
 - **Overview Row**:
-  - Message Rate panel (received, delivered, rejected, bounced per minute) - 18 columns wide
-  - Uptime panel - compact 6x4 display with color-coded thresholds
+  - Message Rate panel (received, delivered, rejected, bounced per minute) - 20 columns wide
+  - Uptime panel - compact 4x4 display with color-coded thresholds
 
 - **Queue Details Row**:
   - Queue Size by Type (stacked area chart showing active, deferred, incoming, hold, maildrop)
