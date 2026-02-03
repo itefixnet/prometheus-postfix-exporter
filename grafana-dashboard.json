@@ -605,7 +605,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_received_total{instance=~\"$instance\",job=~\"$job\"}[24h])",
+          "expr": "increase(postfix_messages_received_total{instance=~\"$instance\",job=~\"$job\"}[1h])",
           "legendFormat": "Received",
           "refId": "A"
         },
@@ -614,7 +614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_delivered_total{instance=~\"$instance\",job=~\"$job\"}[24h])",
+          "expr": "increase(postfix_messages_delivered_total{instance=~\"$instance\",job=~\"$job\"}[1h])",
           "legendFormat": "Delivered",
           "refId": "B"
         },
@@ -623,7 +623,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_rejected_total{instance=~\"$instance\",job=~\"$job\"}[24h])",
+          "expr": "increase(postfix_messages_rejected_total{instance=~\"$instance\",job=~\"$job\"}[1h])",
           "legendFormat": "Rejected",
           "refId": "C"
         },
@@ -632,7 +632,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_bounced_total{instance=~\"$instance\",job=~\"$job\"}[24h])",
+          "expr": "increase(postfix_messages_bounced_total{instance=~\"$instance\",job=~\"$job\"}[1h])",
           "legendFormat": "Bounced",
           "refId": "D"
         },
@@ -641,12 +641,12 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(postfix_messages_deferred_total{instance=~\"$instance\",job=~\"$job\"}[24h])",
+          "expr": "increase(postfix_messages_deferred_total{instance=~\"$instance\",job=~\"$job\"}[1h])",
           "legendFormat": "Deferred",
           "refId": "E"
         }
       ],
-      "title": "Message Distribution (24h)",
+      "title": "Message Distribution (1h)",
       "type": "piechart"
     },
     {

@@ -239,7 +239,7 @@ The comprehensive Grafana dashboard includes:
 
 - **Message Statistics Row**:
   - Message Flow (1h increase) showing received, delivered, deferred, bounced
-  - Message Distribution (24h pie chart with percentages)
+  - Message Distribution (1h pie chart with percentages)
 
 - **SMTP & Rejections Row** (collapsed by default):
   - SMTP Connections per minute (connections, SASL authenticated, SASL failed)
