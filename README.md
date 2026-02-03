@@ -1,6 +1,6 @@
 ![Postfix Grafana Dashboard](grafana-dashboard-postfix.png)
 
-# Postfix Prometheus Exporter
+# Postfix Prometheus Exporter with Grafana Dashboard
 
 A lightweight, bash-based Prometheus exporter for Postfix mail server statistics. This exporter uses only bash and socat to provide comprehensive Postfix metrics for monitoring with Prometheus and Grafana.
 
