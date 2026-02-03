@@ -13,8 +13,6 @@ A lightweight, bash-based Prometheus exporter for Postfix mail server statistics
   - SMTP connection statistics and SASL authentication
   - Rejection reasons (RBL, HELO, sender, recipient, client, unknown user)
   - Delivery status by transport (smtp, lmtp, virtual, pipe)
-  - Process status and uptime
-  - Postfix version information
 - **Stateful Counter Tracking**: Maintains persistent counters for accurate Prometheus rate calculations
 - **HTTP Server**: Built-in HTTP server using socat for serving metrics
 - **Systemd Integration**: Ready-to-use systemd service file
